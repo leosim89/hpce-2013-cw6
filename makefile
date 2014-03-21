@@ -32,7 +32,7 @@ connect_exchange : src/bitecoin_client
 
 # Launch a modified miner connected to a shared exchange
 connect_exchange_miner : src/bitecoin_miner
-	src/bitecoin_miner client-$(USER) 3 tcp-client $(EXCHANGE_ADDR)  $(EXCHANGE_PORT)
+	src/bitecoin_miner client-$(USER) 2 tcp-client $(EXCHANGE_ADDR)  $(EXCHANGE_PORT)
 
 src/bitecoin_client:
 	$(CC) $(CPPFLAGS) src/bitecoin_client.cpp $(LDFLAGS) -o src/bitecoin_client
