@@ -61,14 +61,15 @@ namespace bitecoin{
 			temp.limbs[7] = temp.limbs[6];
 			wide_zero(2, temp.limbs);
 			
+			unsigned int iterations = 16;	// Simultaneous Iterations
+			
 			// Variables
 			uint32_t *indices;
 			indices = new uint32_t[iterations*roundInfo->maxIndices];
 			bigint_t *proof;
 			proof = new bigint_t[iterations];
-			double score[iterations];
-					
-			unsigned int iterations = 16;	// Simultaneous Iterations
+			double score[iterations];	
+			
 			unsigned nTrials=1;
 			
 			while(1){		// Trial Loop
