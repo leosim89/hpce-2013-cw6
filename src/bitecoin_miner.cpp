@@ -104,6 +104,7 @@ namespace bitecoin{
 				double worst=pow(2.0, BIGINT_LENGTH*8);	// This is the worst possible score
 				
 				if (period > threshold) {
+					Log(Log_Info, "OpenCL");
 					/****************** Open CL *************************/
 					std::vector<cl::Platform> platforms;
 
@@ -200,7 +201,7 @@ namespace bitecoin{
 					//Setting up the iteration space
 					cl::NDRange offset(0, 0);               // Always start iterations at x=0, y=0
 					cl::NDRange globalSize(roundInfo->maxIndices, iterations);   // Global size must match the original loops
-					cl::NDRange localSize(roundInfo->maxIndices, 1);
+					cl::NDRange localSize(roundInfo->maxIndices, 2);
 				
 					queue.enqueueWriteBuffer(buffTemp, CL_TRUE, 0, 8*4, &temp[0]);
 					
@@ -253,6 +254,7 @@ namespace bitecoin{
 						Log(Log_Verbose, "Trial time = %f", Trialt2);
 					}
 				} else {
+					Log(Log_Info, "Seq");
 					uint32_t *indices;
 					indices = new uint32_t[roundInfo->maxIndices];
 					bigint_t proof;
