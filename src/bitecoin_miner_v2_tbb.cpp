@@ -49,7 +49,7 @@ namespace bitecoin{
 			uint32_t *pProof																		// Will contain the "proof", which is just the value
 		){
 			// Time Related Calculations
-			double tSafetyMargin=0.5;
+			double tSafetyMargin=0.2;
 			double tFinish=request->timeStampReceiveBids*1e-9 + skewEstimate - tSafetyMargin;
 			Log(Log_Verbose, "MakeBid - start, total period=%lg.", period);
 			double Trialt = now()*1e-9;
@@ -77,7 +77,7 @@ namespace bitecoin{
 			// Initialise TBB to use max number of cores
 			tbb::task_scheduler_init init(tbb::task_scheduler_init::automatic);
 			fprintf(stderr, "Cores = %d\n", tbb::task_scheduler_init::default_num_threads());
-			unsigned int iterations = tbb::task_scheduler_init::default_num_threads()*16;
+			unsigned int iterations = tbb::task_scheduler_init::default_num_threads()*32;
 			
 			//Variables
 			uint32_t indices[iterations*roundInfo->maxIndices];

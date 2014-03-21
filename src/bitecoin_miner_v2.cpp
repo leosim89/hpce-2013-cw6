@@ -40,7 +40,7 @@ namespace bitecoin{
 			uint32_t *pProof																		// Will contain the "proof", which is just the value
 		){
 			// Time Related Calculations
-			double tSafetyMargin=0.5;
+			double tSafetyMargin=0.2;
 			double tFinish=request->timeStampReceiveBids*1e-9 + skewEstimate - tSafetyMargin;
 			Log(Log_Verbose, "MakeBid - start, total period=%lg.", period);
 			
@@ -74,9 +74,9 @@ namespace bitecoin{
 			
 			while(1){		// Trial Loop
 			
-				(Log_Debug, "Trials %d - %d.", nTrials, nTrials + iterations - 1);
+				(Log_Debug, "Trials %d - %d.", nTrials, (nTrials + iterations - 1));
 				
-				for(int k = 0; k < iterations; k++) {
+				for(unsigned int k = 0; k < iterations; k++) {
 					indices[(k*roundInfo->maxIndices)]=1+(rand()%10);
 					for(unsigned i=1;i<roundInfo->maxIndices;i++){
 						indices[i+(k*roundInfo->maxIndices)] = indices[i-1+(k*roundInfo->maxIndices)]+1+(rand()%10);
@@ -89,7 +89,6 @@ namespace bitecoin{
 					unsigned int i, // Counter for index
 					unsigned int k,	// Counter for iterations
 					unsigned int j,	// Max for index
-					unsigned int l, // Max for iterations
 					uint32_t *indices,
 					bigint_t *proof,
 					bigint_t temp
@@ -108,9 +107,9 @@ namespace bitecoin{
 						wide_xor(8, proof[k].limbs, proof[k].limbs, point.limbs);
 				};
 				
-				for (int k = 0; k < iterations; k++){
-					for (int i = 0; i < roundInfo->maxIndices; i++){
-						main_loop(i,k, roundInfo->maxIndices, iterations, &indices[0], &proof[0], temp);
+				for (unsigned int k = 0; k < iterations; k++){
+					for (unsigned int i = 0; i < roundInfo->maxIndices; i++){
+						main_loop(i,k, roundInfo->maxIndices, &indices[0], &proof[0], temp);
 					}
 				}
 				
@@ -119,7 +118,7 @@ namespace bitecoin{
 					Log(Log_Debug, "    Score=%lg", score);
 					if(wide_compare(BIGINT_WORDS, proof[k].limbs, bestProof.limbs)<0){
 						Log(Log_Verbose, "    Found new best, nTrials=%d, score=%lg, ratio=%lg.", nTrials + k, score[k], worst/score[k]);
-						for(int i = 0; i < roundInfo->maxIndices; i++){
+						for(unsigned int i = 0; i < roundInfo->maxIndices; i++){
 							bestSolution[i]=indices[k*roundInfo->maxIndices + i];
 						}
 						bestProof=proof[k];

@@ -75,7 +75,7 @@ namespace bitecoin{
 		){
 			try{
 				// Time Related Calculations
-				double tSafetyMargin=1;
+				double tSafetyMargin=0.2;
 				double tFinish=request->timeStampReceiveBids*1e-9 + skewEstimate - tSafetyMargin;
 				Log(Log_Verbose, "MakeBid - start, total period=%lg.", period);
 				double Trialt = now()*1e-9;
@@ -165,7 +165,7 @@ namespace bitecoin{
 				std::cerr<<"MAX_WORK_GROUP_SIZE = " << maxworkgroupsize <<"\n";
 				
 				// Variables
-				unsigned int iterations = maxcompunits*maxworkgroupsize*4;
+				unsigned int iterations = 1536;
 				uint32_t *indices;
 				indices = new uint32_t[iterations*roundInfo->maxIndices];
 				bigint_t *proof;
@@ -203,7 +203,7 @@ namespace bitecoin{
 					nTrials = nTrials + iterations;
 					Log(Log_Debug, "Trials %d - %d.", nTrials, nTrials + iterations - 1);
 			
-					for(int k = 0; k < iterations; k++) {
+					for(unsigned int k = 0; k < iterations; k++) {
 						indices[(k*roundInfo->maxIndices)]=1+(rand()%10);
 						for(unsigned i=1;i<roundInfo->maxIndices;i++){
 							indices[i+(k*roundInfo->maxIndices)] = indices[i-1+(k*roundInfo->maxIndices)]+1+(rand()%10);
