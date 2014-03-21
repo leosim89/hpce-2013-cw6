@@ -65,7 +65,10 @@ __kernel void main_loop(
 		
 		uint tmp[8];
 		
-		uint ind = get_local_id(0); //iterations
+		uint i_l = get_local_id(0); //iterations
+		uint k_l = get_local_id(1);
+		
+		uint ind = i_l + k_l*j;
 		
 		localIndices[ind] = indices[k*j+i];
 		barrier(CLK_LOCAL_MEM_FENCE);
