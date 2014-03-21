@@ -77,7 +77,7 @@ namespace bitecoin{
 			// Initialise TBB to use max number of cores
 			tbb::task_scheduler_init init(tbb::task_scheduler_init::automatic);
 			fprintf(stderr, "Cores = %d\n", tbb::task_scheduler_init::default_num_threads());
-			unsigned int iterations = tbb::task_scheduler_init::default_num_threads()*32;
+			unsigned int iterations = tbb::task_scheduler_init::default_num_threads()*16;
 			
 			//Variables
 			uint32_t indices[iterations*roundInfo->maxIndices];
@@ -89,14 +89,12 @@ namespace bitecoin{
 				nTrials = nTrials + iterations;
 				Log(Log_Debug, "Trials %d - %d.", nTrials - iterations +1, nTrials);
 
-				auto main_loop = [&] (unsigned int k) {					
-					for(int k = 0; k < iterations; k++) {
-						indices[(k*roundInfo->maxIndices)]=1+(rand()%10);
-						for(unsigned i=1;i<roundInfo->maxIndices;i++){
-							indices[i+(k*roundInfo->maxIndices)] = indices[i-1+(k*roundInfo->maxIndices)]+1+(rand()%10);
-						}
-						wide_zero(8, proof[k].limbs);
+				auto main_loop = [&] (unsigned int k) {		
+					indices[(k*roundInfo->maxIndices)]=1+(rand()%10);
+					for(unsigned i=1;i<roundInfo->maxIndices;i++){
+						indices[i+(k*roundInfo->maxIndices)] = indices[i-1+(k*roundInfo->maxIndices)]+1+(rand()%10);
 					}
+					wide_zero(8, proof[k].limbs);
 	
 					for (unsigned int i=0; i<roundInfo->maxIndices; i++){
 						uint32_t tmp[8];
@@ -104,7 +102,6 @@ namespace bitecoin{
 						for (uint32_t x = 1; x < 8; x++){
 							point[(k*roundInfo->maxIndices+i)*8+x] = temp[x];
 						}
-						//wide_copy (7, &point[(k*roundInfo->maxIndices+i)*8+1], &temp[1]);
 						point[(k*roundInfo->maxIndices+i)*8] = indices[k*roundInfo->maxIndices+i];
 
 						// Now step forward by the number specified by the server

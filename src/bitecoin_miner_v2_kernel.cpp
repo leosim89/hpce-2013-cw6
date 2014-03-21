@@ -73,10 +73,7 @@ namespace bitecoin{
 			std::vector<uint32_t> &solution,												// Our vector of indices describing the solution
 			uint32_t *pProof																		// Will contain the "proof", which is just the value
 		){
-			double threshold = 5.0;		// Time threshold for choice between Seq and OpenCL code
 			try{
-				Log(Log_Info, " OpenCL Branch");
-				
 				// Time Related Calculations
 				double tSafetyMargin=1;
 				double tFinish=request->timeStampReceiveBids*1e-9 + skewEstimate - tSafetyMargin;
@@ -256,7 +253,6 @@ namespace bitecoin{
 			
 			}catch(const std::exception &e){
 				std::cerr<<"Caught exception : "<<e.what()<<std::endl;
-				return 0;
 			}
 		}
 	};  // EndpointClient_V1
