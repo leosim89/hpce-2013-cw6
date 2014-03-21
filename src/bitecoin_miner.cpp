@@ -160,9 +160,7 @@ namespace bitecoin{
 				cl::Kernel kernel(program, "main_loop");
 				
 				uint32_t maxcompunits = devices[selectedDevice].getInfo<CL_DEVICE_MAX_COMPUTE_UNITS>();
-				std::cerr<<"MAX_COMPUTE_UNITS = " << maxcompunits<<"\n";
 				uint32_t maxworkgroupsize = kernel.getWorkGroupInfo<CL_KERNEL_PREFERRED_WORK_GROUP_SIZE_MULTIPLE>(devices[selectedDevice]);
-				std::cerr<<"MAX_WORK_GROUP_SIZE = " << maxworkgroupsize <<"\n";
 				
 				// Variables
 				unsigned int iterations = 1536;
@@ -243,13 +241,12 @@ namespace bitecoin{
 				}
 				
 				Trialt = now()*1e-9 - Trialt;
-				Log(Log_Info, "Trial time = %f", Trialt);
 				
 				solution=bestSolution;
 				wide_copy(BIGINT_WORDS, pProof, bestProof.limbs);
 		
 				Log(Log_Verbose, "MakeBid - finish.");
-				Log(Log_Info, "nTrials=%d, period=%lg, Trial rate=%f trials per second", nTrials, period, nTrials/Trialt);
+				Log(Log_Verbose, "nTrials=%d, period=%lg, Trial rate=%f trials per second", nTrials, period, nTrials/Trialt);
 			
 			}catch(const std::exception &e){
 				std::cerr<<"Caught exception : "<<e.what()<<std::endl;
