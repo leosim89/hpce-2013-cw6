@@ -169,7 +169,7 @@ namespace bitecoin{
 					uint32_t maxworkgroupsize = kernel.getWorkGroupInfo<CL_KERNEL_PREFERRED_WORK_GROUP_SIZE_MULTIPLE>(devices[selectedDevice]);
 					std::cerr<<"MAX_WORK_GROUP_SIZE = " << maxworkgroupsize <<"\n";
 					
-					unsigned int iterations = maxcompunits * maxworkgroupsize;
+					unsigned int iterations = 1536;
 					uint32_t *indices;
 					indices = new uint32_t[iterations*roundInfo->maxIndices];
 					bigint_t *proof;
