@@ -97,7 +97,7 @@ public:
 				double roundLength=(rand()+1.0)/RAND_MAX;
 				roundLength=-log(roundLength)*2.75+0.25;
 				roundLength=std::max(0.25, std::min(60.0, roundLength));
-				roundLength=60.0;
+				roundLength=10.0;
 				
 				timestamp_t start=now();
 				timestamp_t finish=uint64_t(start+roundLength*1e9);
