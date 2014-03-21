@@ -1,5 +1,6 @@
 SHELL=/bin/bash
 
+CC=g++-4.7
 CPPFLAGS += -std=c++11 -W -Wall -g
 CPPFLAGS += -O3
 CPPFLAGS += -I include
@@ -29,10 +30,10 @@ connect_exchange : src/bitecoin_miner
 	src/bitecoin_miner client-$(USER) 3 tcp-client $(EXCHANGE_ADDR)  $(EXCHANGE_PORT)
 
 src/bitecoin_client:
-	$(CXX) $(CPPFLAGS) src/bitecoin_client.cpp $(LDFLAGS) -o src/bitecoin_client
+	$(CC) $(CPPFLAGS) src/bitecoin_client.cpp $(LDFLAGS) -o src/bitecoin_client
 
 src/bitecoin_server:
-	$(CXX) $(CPPFLAGS) src/bitecoin_server.cpp $(LDFLAGS) -o src/bitecoin_server
+	$(CC) $(CPPFLAGS) src/bitecoin_server.cpp $(LDFLAGS) -o src/bitecoin_server
 
 src/bitecoin_miner:
-	$(CXX) $(CPPFLAGS) src/bitecoin_miner.cpp $(LDFLAGS) -o src/bitecoin_miner
+	$(CC) $(CPPFLAGS) src/bitecoin_miner.cpp $(LDFLAGS) -o src/bitecoin_miner
