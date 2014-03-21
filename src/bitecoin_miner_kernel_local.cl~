@@ -48,6 +48,8 @@ void wide_mul(uint n, uint *res_hi, uint *res_lo, __global const uint *a, __glob
 	}
 	res_hi[n-1] = convert_uint(acc);
 }
+
+
 	
 __kernel void main_loop(
 	uint hashSteps,
@@ -65,6 +67,7 @@ __kernel void main_loop(
 		
 		uint i_l = get_local_id(0); //iterations
 		uint k_l = get_local_id(1);
+		
 		uint ind = i_l + k_l*j;
 		
 		localIndices[ind] = indices[k*j+i];

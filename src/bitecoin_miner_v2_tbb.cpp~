@@ -63,7 +63,7 @@ namespace bitecoin{
 				
 				tbb::task_scheduler_init init(tbb::task_scheduler_init::automatic);
 				fprintf(stderr, "Cores = %d\n", tbb::task_scheduler_init::default_num_threads());
-				unsigned int iterations = tbb::task_scheduler_init::default_num_threads()*32;
+				unsigned int iterations = tbb::task_scheduler_init::default_num_threads()*16;
 			
 				uint32_t indices[iterations*roundInfo->maxIndices];
 				bigint_t proof[iterations];
