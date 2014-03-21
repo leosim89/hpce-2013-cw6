@@ -16,6 +16,7 @@
 #include <cstdio>
 #include <cstdint>
 
+#define worst pow(2.0, BIGINT_LENGTH*8)
 
 namespace bitecoin{
 
@@ -38,14 +39,17 @@ namespace bitecoin{
 			std::vector<uint32_t> &solution,												// Our vector of indices describing the solution
 			uint32_t *pProof																		// Will contain the "proof", which is just the value
 		){
+			// Time Related Calculations
 			double tSafetyMargin=0.5;
 			double tFinish=request->timeStampReceiveBids*1e-9 + skewEstimate - tSafetyMargin;
 			Log(Log_Verbose, "MakeBid - start, total period=%lg.", period);
-		
+			
+			// Best Score
 			std::vector<uint32_t> bestSolution(roundInfo->maxIndices);
 			bigint_t bestProof;
 			wide_ones(BIGINT_WORDS, bestProof.limbs);
-		
+			
+			// Generation of Points for hashing
 			hash::fnv<64> hasher;
 			uint64_t chainHash=hasher((const char*)&roundInfo.get()->chainData[0], roundInfo.get()->chainData.size());
 			bigint_t temp;
@@ -56,15 +60,15 @@ namespace bitecoin{
 			temp.limbs[6] = chainHash&0xFFFFFFFFULL;
 			temp.limbs[7] = temp.limbs[6];
 			wide_zero(2, temp.limbs);
-					
-			unsigned int iterations = 16;
 			
+			// Variables
 			uint32_t *indices;
 			indices = new uint32_t[iterations*roundInfo->maxIndices];
 			bigint_t *proof;
 			proof = new bigint_t[iterations];
 			double score[iterations];
-			
+					
+			unsigned int iterations = 16;	// Simultaneous Iterations
 			unsigned nTrials=1;
 			
 			while(1){		// Trial Loop
@@ -72,10 +76,9 @@ namespace bitecoin{
 				(Log_Debug, "Trials %d - %d.", nTrials, nTrials + iterations - 1);
 				
 				for(int k = 0; k < iterations; k++) {
-					uint32_t curr=0;
-					for(unsigned i=0;i<roundInfo->maxIndices;i++){
-						curr=curr+1+(rand()%10);
-						indices[i+(k*roundInfo->maxIndices)]=curr;
+					indices[(k*roundInfo->maxIndices)]=1+(rand()%10);
+					for(unsigned i=1;i<roundInfo->maxIndices;i++){
+						indices[i+(k*roundInfo->maxIndices)] = indices[i-1+(k*roundInfo->maxIndices)]+1+(rand()%10);
 					}
 					wide_zero(8, proof[k].limbs);
 				}
@@ -109,13 +112,11 @@ namespace bitecoin{
 						main_loop(i,k, roundInfo->maxIndices, iterations, &indices[0], &proof[0], temp);
 					}
 				}
-					
-			
+				
 				for (unsigned int k = 0; k < iterations; k++) {
 					score[k]=wide_as_double(BIGINT_WORDS, proof[k].limbs);
 					Log(Log_Debug, "    Score=%lg", score);
 					if(wide_compare(BIGINT_WORDS, proof[k].limbs, bestProof.limbs)<0){
-						double worst=pow(2.0, BIGINT_LENGTH*8);	// This is the worst possible score
 						Log(Log_Verbose, "    Found new best, nTrials=%d, score=%lg, ratio=%lg.", nTrials + k, score[k], worst/score[k]);
 						for(int i = 0; i < roundInfo->maxIndices; i++){
 							bestSolution[i]=indices[k*roundInfo->maxIndices + i];
@@ -130,12 +131,11 @@ namespace bitecoin{
 					break;
 					
 			}
-		
 			solution=bestSolution;
 			wide_copy(BIGINT_WORDS, pProof, bestProof.limbs);
 		
 			Log(Log_Verbose, "MakeBid - finish.");
-			Log(Log_Verbose, "nTrials=%d, Trial rate=%f trials per second", nTrials, nTrials/period);
+			Log(Log_Info, "nTrials=%d, Trial rate=%f trials per second", nTrials, nTrials/period);
 		}
 	};
 

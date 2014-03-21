@@ -30,6 +30,7 @@
 #define __CL_ENABLE_EXCEPTIONS
 #include "CL/cl.hpp"
 
+#define worst pow(2.0, BIGINT_LENGTH*8)
 
 namespace bitecoin{
 
@@ -72,20 +73,22 @@ namespace bitecoin{
 			std::vector<uint32_t> &solution,												// Our vector of indices describing the solution
 			uint32_t *pProof																		// Will contain the "proof", which is just the value
 		){
-			double threshold = 5.0;
+			double threshold = 5.0;		// Time threshold for choice between Seq and OpenCL code
 			try{
 				Log(Log_Info, " OpenCL Branch");
 				
+				// Time Related Calculations
 				double tSafetyMargin=1;
 				double tFinish=request->timeStampReceiveBids*1e-9 + skewEstimate - tSafetyMargin;
 				Log(Log_Verbose, "MakeBid - start, total period=%lg.", period);
 				double Trialt = now()*1e-9;
-				double worst=pow(2.0, BIGINT_LENGTH*8);	// This is the worst possible score
 				
+				// Best Score
 				std::vector<uint32_t> bestSolution(roundInfo->maxIndices);
 				bigint_t bestProof;
 				wide_ones(BIGINT_WORDS, bestProof.limbs);
-		
+				
+				// Generation of Point for hashing
 				hash::fnv<64> hasher;
 				uint64_t chainHash=hasher((const char*)&roundInfo.get()->chainData[0], roundInfo.get()->chainData.size());
 				uint32_t temp[8];
@@ -100,207 +103,148 @@ namespace bitecoin{
 				
 				unsigned nTrials=0;
 				
-				if (period > threshold) {
+				// Initialise OpenCL
+				std::vector<cl::Platform> platforms;
+
+				cl::Platform::get(&platforms);
+				if(platforms.size()==0)
+				throw std::runtime_error("No OpenCL platforms found.");
+
+				std::cerr<<"Found "<<platforms.size()<<" platforms\n";
+				for(unsigned i=0;i<platforms.size();i++){
+					std::string vendor=platforms[i].getInfo<CL_PLATFORM_VENDOR>();
+					std::cerr<<" Platform "<<i<<" : "<<vendor<<"\n";
+				}
+
+				int selectedPlatform=0;
+				if(getenv("HPCE_SELECT_PLATFORM")){
+					selectedPlatform=atoi(getenv("HPCE_SELECT_PLATFORM"));
+				}
+				std::cerr<<"Choosing platform "<<selectedPlatform<<"\n";
+				cl::Platform platform=platforms.at(selectedPlatform);
+
+				std::vector<cl::Device> devices;
+				platform.getDevices(CL_DEVICE_TYPE_ALL, &devices);	
+				if(devices.size()==0){
+					throw std::runtime_error("No opencl devices found.\n");
+				}
+
+				std::cerr<<"Found "<<devices.size()<<" devices\n";
+				for(unsigned i=0;i<devices.size();i++){
+					std::string name=devices[i].getInfo<CL_DEVICE_NAME>();
+					std::cerr<<" Device "<<i<<" : "<<name<<"\n";
+				}
+
+				int selectedDevice=0;
+				if(getenv("HPCE_SELECT_DEVICE")){
+					selectedDevice=atoi(getenv("HPCE_SELECT_DEVICE"));
+				}
+				std::cerr<<"Choosing device "<<selectedDevice<<"\n";
+				cl::Device device=devices.at(selectedDevice);
+
+				cl::Context context(devices);
+
+				std::string kernelSource=LoadSource("bitecoin_miner_kernel.cl");
+
+				cl::Program::Sources sources;
+				sources.push_back(std::make_pair(kernelSource.c_str(), kernelSource.size()+1)); // push on our single string
+		
+				cl::Program program(context, sources);
+				try{
+				    program.build(devices);
+				}catch(...){
+				    for(unsigned i=0;i<devices.size();i++){
+					std::cerr<<"Log for device "<<devices[i].getInfo<CL_DEVICE_NAME>()<<":\n\n";
+					std::cerr<<program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(devices[i])<<"\n\n";
+				    }
+				    throw;
+				}
 				
-					/****************** Open CL *************************/
-					std::vector<cl::Platform> platforms;
+				cl::Kernel kernel(program, "main_loop");
+				
+				uint32_t maxcompunits = devices[selectedDevice].getInfo<CL_DEVICE_MAX_COMPUTE_UNITS>();
+				std::cerr<<"MAX_COMPUTE_UNITS = " << maxcompunits<<"\n";
+				uint32_t maxworkgroupsize = kernel.getWorkGroupInfo<CL_KERNEL_PREFERRED_WORK_GROUP_SIZE_MULTIPLE>(devices[selectedDevice]);
+				std::cerr<<"MAX_WORK_GROUP_SIZE = " << maxworkgroupsize <<"\n";
+				
+				// Variables
+				unsigned int iterations = maxcompunits*maxworkgroupsize*4;
+				uint32_t *indices;
+				indices = new uint32_t[iterations*roundInfo->maxIndices];
+				bigint_t *proof;
+				proof = new bigint_t[iterations];
+				uint32_t *point;
+				point = new uint32_t[iterations*roundInfo->maxIndices*8];
+				double score[iterations];
+				
+				//allocating GPU buffers
+				cl::Buffer buffPoint(context, CL_MEM_WRITE_ONLY, roundInfo->maxIndices*iterations*8*4);
+				cl::Buffer buffIndices(context, CL_MEM_READ_ONLY, 4*iterations*roundInfo->maxIndices);
+				cl::Buffer buffC(context, CL_MEM_READ_ONLY, 4*4);
+				cl::Buffer buffTemp(context, CL_MEM_READ_ONLY, 8*4);
 
-					cl::Platform::get(&platforms);
-					if(platforms.size()==0)
-					throw std::runtime_error("No OpenCL platforms found.");
-
-					std::cerr<<"Found "<<platforms.size()<<" platforms\n";
-					for(unsigned i=0;i<platforms.size();i++){
-						std::string vendor=platforms[i].getInfo<CL_PLATFORM_VENDOR>();
-						std::cerr<<" Platform "<<i<<" : "<<vendor<<"\n";
-					}
-
-					int selectedPlatform=0;
-					if(getenv("HPCE_SELECT_PLATFORM")){
-						selectedPlatform=atoi(getenv("HPCE_SELECT_PLATFORM"));
-					}
-					std::cerr<<"Choosing platform "<<selectedPlatform<<"\n";
-					cl::Platform platform=platforms.at(selectedPlatform);
-
-					std::vector<cl::Device> devices;
-					platform.getDevices(CL_DEVICE_TYPE_ALL, &devices);	
-					if(devices.size()==0){
-						throw std::runtime_error("No opencl devices found.\n");
-					}
-
-					std::cerr<<"Found "<<devices.size()<<" devices\n";
-					for(unsigned i=0;i<devices.size();i++){
-						std::string name=devices[i].getInfo<CL_DEVICE_NAME>();
-						std::cerr<<" Device "<<i<<" : "<<name<<"\n";
-					}
-
-					int selectedDevice=0;
-					if(getenv("HPCE_SELECT_DEVICE")){
-						selectedDevice=atoi(getenv("HPCE_SELECT_DEVICE"));
-					}
-					std::cerr<<"Choosing device "<<selectedDevice<<"\n";
-					cl::Device device=devices.at(selectedDevice);
-
-					cl::Context context(devices);
-
-					std::string kernelSource=LoadSource("bitecoin_miner_kernel.cl");
-
-					cl::Program::Sources sources;
-					sources.push_back(std::make_pair(kernelSource.c_str(), kernelSource.size()+1)); // push on our single string
+				//Setting the Kernel Params  --> can bring outside for loop?
+				kernel.setArg(0, roundInfo.get()->hashSteps);
+				kernel.setArg(1, buffC);
+				kernel.setArg(2, buffIndices);
+				kernel.setArg(3, buffPoint);
+				kernel.setArg(4, buffTemp);	
+				kernel.setArg(5, 4*roundInfo->maxIndices*4, NULL);	
 			
-					cl::Program program(context, sources);
-					try{
-					    program.build(devices);
-					}catch(...){
-					    for(unsigned i=0;i<devices.size();i++){
-						std::cerr<<"Log for device "<<devices[i].getInfo<CL_DEVICE_NAME>()<<":\n\n";
-						std::cerr<<program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(devices[i])<<"\n\n";
-					    }
-					    throw;
-					}
-					
-					//finding the compiled kernel and creating an instance of it
-					cl::Kernel kernel(program, "main_loop");
-					
-					uint32_t maxcompunits = devices[selectedDevice].getInfo<CL_DEVICE_MAX_COMPUTE_UNITS>();
-					std::cerr<<"MAX_COMPUTE_UNITS = " << maxcompunits<<"\n";
-					uint32_t maxworkgroupsize = kernel.getWorkGroupInfo<CL_KERNEL_PREFERRED_WORK_GROUP_SIZE_MULTIPLE>(devices[selectedDevice]);
-					std::cerr<<"MAX_WORK_GROUP_SIZE = " << maxworkgroupsize <<"\n";
-					
-					unsigned int iterations = maxcompunits*maxworkgroupsize*64;
-					uint32_t *indices;
-					indices = new uint32_t[iterations*roundInfo->maxIndices];
-					bigint_t *proof;
-					proof = new bigint_t[iterations];
-					uint32_t *point;
-					point = new uint32_t[iterations*roundInfo->maxIndices*8];
-					double score[iterations];
-					
-					//allocating GPU buffers
-					cl::Buffer buffPoint(context, CL_MEM_WRITE_ONLY, roundInfo->maxIndices*iterations*8*4);
-					cl::Buffer buffIndices(context, CL_MEM_READ_ONLY, 4*iterations*roundInfo->maxIndices);
-					cl::Buffer buffC(context, CL_MEM_READ_ONLY, 4*4);
-					cl::Buffer buffTemp(context, CL_MEM_READ_ONLY, 8*4);
+				//creating command queue for single device
+				cl::CommandQueue queue(context, device);
 
-					//Setting the Kernel Params  --> can bring outside for loop?
-					kernel.setArg(0, roundInfo.get()->hashSteps);
-					kernel.setArg(1, buffC);
-					kernel.setArg(2, buffIndices);
-					kernel.setArg(3, buffPoint);
-					kernel.setArg(4, buffTemp);	
-					kernel.setArg(5, 4*roundInfo->maxIndices*2, NULL);	
-				
-					//creating command queue for single device
-					cl::CommandQueue queue(context, device);
-
-					//Setting up the iteration space
-					cl::NDRange offset(0, 0);               // Always start iterations at x=0, y=0
-					cl::NDRange globalSize(roundInfo->maxIndices, iterations);   // Global size must match the original loops
-					cl::NDRange localSize(roundInfo->maxIndices, 2);
-				
-					queue.enqueueWriteBuffer(buffTemp, CL_TRUE, 0, 8*4, &temp[0]);
-					
-					
-					while(1){		// Trial Loop
-						nTrials = nTrials + iterations;
-						Log(Log_Debug, "Trials %d - %d.", nTrials, nTrials + iterations - 1);
-				
-						for(unsigned k = 0; k < iterations; k++) {
-							uint32_t curr=0;
-							for(unsigned i=0;i<roundInfo->maxIndices;i++){
-								curr=curr+1+(rand()%10);
-								indices[i+(k*roundInfo->maxIndices)]=curr;
-							}
-							wide_zero(8, proof[k].limbs);
-						}
-					
-							queue.enqueueWriteBuffer(buffC, CL_TRUE, 0, 4*4, &roundInfo.get()->c[0]);
-							queue.enqueueWriteBuffer(buffIndices, CL_TRUE, 0, 4*iterations*roundInfo->maxIndices, &indices[0]);
-							queue.enqueueNDRangeKernel(kernel, offset, globalSize, localSize);
-							queue.enqueueBarrier();
-							queue.enqueueReadBuffer(buffPoint, CL_TRUE, 0, roundInfo->maxIndices*iterations*8*4, &point[0]);
-					
-						for (unsigned k = 0; k < iterations; k++){
-							for (unsigned i = 0; i < roundInfo->maxIndices; i++){
-								for(unsigned x=0;x<8;x++){
-									proof[k].limbs[x] = proof[k].limbs[x]^point[(k*roundInfo->maxIndices+i)*8 + x];
-								}
-							}
-						}
+				//Setting up the iteration space
+				cl::NDRange offset(0, 0);               // Always start iterations at x=0, y=0
+				cl::NDRange globalSize(roundInfo->maxIndices, iterations);   // Global size must match the original loops
+				cl::NDRange localSize(roundInfo->maxIndices, 4);
 			
-						for (unsigned k = 0; k < iterations; k++) {
-							score[k]=wide_as_double(BIGINT_WORDS, proof[k].limbs);
-							Log(Log_Debug, "    Score=%lg", score);
-							if(wide_compare(BIGINT_WORDS, proof[k].limbs, bestProof.limbs)<0){
-								Log(Log_Verbose, "    Found new best, nTrials=%d, score=%lg, ratio=%lg.", nTrials + k, score[k], worst/score[k]);
-								for(unsigned i = 0; i < roundInfo->maxIndices; i++){
-									bestSolution[i]=indices[k*roundInfo->maxIndices + i];
-								}
-								bestProof=proof[k];
-							}
-
-						}
+				queue.enqueueWriteBuffer(buffTemp, CL_TRUE, 0, 8*4, &temp[0]);
 				
-						if (tFinish <= now()*1e-9)
-							break;
+				
+				while(1){		// Trial Loop
+					nTrials = nTrials + iterations;
+					Log(Log_Debug, "Trials %d - %d.", nTrials, nTrials + iterations - 1);
+			
+					for(int k = 0; k < iterations; k++) {
+						indices[(k*roundInfo->maxIndices)]=1+(rand()%10);
+						for(unsigned i=1;i<roundInfo->maxIndices;i++){
+							indices[i+(k*roundInfo->maxIndices)] = indices[i-1+(k*roundInfo->maxIndices)]+1+(rand()%10);
+						}
+						wide_zero(8, proof[k].limbs);
 					}
-				} else {
-					Log(Log_Info, "Sequential Branch");
-					
-					uint32_t *indices;
-					indices = new uint32_t[roundInfo->maxIndices];
-					bigint_t proof;
-					uint32_t *point;
-					point = new uint32_t[roundInfo->maxIndices*8];
-					double score;
-					
-					while(1){		// Trial Loop
-						nTrials++;
-						Log(Log_Debug, "Trials %d", nTrials);
 				
-						uint32_t curr=0;
-						for(unsigned i=0;i<roundInfo->maxIndices;i++){
-							curr=curr+1+(rand()%10);
-							indices[i]=curr;
-						}
-						wide_zero(8, proof.limbs);
-					
-						for (unsigned i=0; i< roundInfo->maxIndices; i++){
-							uint32_t tmp[8];
-							// Calculate the hash for this specific point
-							for (uint32_t x = 1; x < 8; x++){
-								point[i*8+x] = temp[x];
-							}
-							point[i*8] = indices[i];
-
-							// Now step forward by the number specified by the server
-							for(unsigned y=0;y<roundInfo.get()->hashSteps;y++){
-								wide_mul(4, &tmp[4], &tmp[0], &point[i*8], roundInfo.get()->c);
-								uint32_t carry=wide_add(4, &point[i*8], &tmp[0], &point[i*8+4]);
-								wide_add(4, &point[i*8+4], &tmp[4], carry);
-							}
-						}
-					
+						queue.enqueueWriteBuffer(buffC, CL_TRUE, 0, 4*4, &roundInfo.get()->c[0]);
+						queue.enqueueWriteBuffer(buffIndices, CL_TRUE, 0, 4*iterations*roundInfo->maxIndices, &indices[0]);
+						queue.enqueueNDRangeKernel(kernel, offset, globalSize, localSize);
+						queue.enqueueBarrier();
+						queue.enqueueReadBuffer(buffPoint, CL_TRUE, 0, roundInfo->maxIndices*iterations*8*4, &point[0]);
+				
+					for (unsigned k = 0; k < iterations; k++){
 						for (unsigned i = 0; i < roundInfo->maxIndices; i++){
 							for(unsigned x=0;x<8;x++){
-								proof.limbs[x] = proof.limbs[x]^point[i*8 + x];
+								proof[k].limbs[x] = proof[k].limbs[x]^point[(k*roundInfo->maxIndices+i)*8 + x];
 							}
 						}
-						score=wide_as_double(BIGINT_WORDS, proof.limbs);
-						Log(Log_Debug, "    Score=%lg", score);
-						if(wide_compare(BIGINT_WORDS, proof.limbs, bestProof.limbs)<0){
-							Log(Log_Verbose, "    Found new best, nTrials=%d, score=%lg, ratio=%lg.", nTrials, score, worst/score);
-							for(unsigned i = 0; i < roundInfo->maxIndices; i++){
-								bestSolution[i]=indices[i];
-							}
-							bestProof=proof;
-						}
-						if (tFinish <= now()*1e-9)
-							break;
 					}
-				
-				}
+		
+					for (unsigned k = 0; k < iterations; k++) {
+						score[k]=wide_as_double(BIGINT_WORDS, proof[k].limbs);
+						Log(Log_Debug, "    Score=%lg", score);
+						if(wide_compare(BIGINT_WORDS, proof[k].limbs, bestProof.limbs)<0){
+							Log(Log_Verbose, "    Found new best, nTrials=%d, score=%lg, ratio=%lg.", nTrials + k, score[k], worst/score[k]);
+							for(unsigned i = 0; i < roundInfo->maxIndices; i++){
+								bestSolution[i]=indices[k*roundInfo->maxIndices + i];
+							}
+							bestProof=proof[k];
+						}
+
+					}
 			
+					if (tFinish <= now()*1e-9)
+						break;
+				}
+				
 				Trialt = now()*1e-9 - Trialt;
 				Log(Log_Info, "Trial time = %f", Trialt);
 				
@@ -312,7 +256,7 @@ namespace bitecoin{
 			
 			}catch(const std::exception &e){
 				std::cerr<<"Caught exception : "<<e.what()<<std::endl;
-				//return 1;
+				return 0;
 			}
 		}
 	};  // EndpointClient_V1
