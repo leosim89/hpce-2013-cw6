@@ -193,7 +193,7 @@ namespace bitecoin{
 					kernel.setArg(2, buffIndices);
 					kernel.setArg(3, buffPoint);
 					kernel.setArg(4, buffTemp);	
-					kernel.setArg(5, 4*roundInfo->maxIndices, NULL);	
+					kernel.setArg(5, 4*roundInfo->maxIndices*2, NULL);	
 				
 					//creating command queue for single device
 					cl::CommandQueue queue(context, device);
